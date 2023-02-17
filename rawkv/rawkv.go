@@ -50,6 +50,9 @@ import (
 	"github.com/tikv/client-go/v2/metrics"
 	"github.com/tikv/client-go/v2/tikv"
 	"github.com/tikv/client-go/v2/tikvrpc"
+	"go.uber.org/zap"
+
+	"github.com/tikv/client-go/v2/internal/logutil"
 	pd "github.com/tikv/pd/client"
 	"google.golang.org/grpc"
 )
@@ -233,10 +236,23 @@ func NewClientWithOpts(ctx context.Context, pdAddrs []string, opts ...ClientOpt)
 		client.WithCodec(codecCli.GetCodec()),
 	)
 
+	rc := locate.NewRegionCache(pdCli)
+	preloadRegions := config.GetGlobalConfig().PreloadRegions
+	if preloadRegions > 0 {
+		bo := retry.NewBackofferWithVars(ctx, 20000, nil)
+		logutil.BgLogger().Info("preload regions start", zap.Int("regions count", preloadRegions))
+		_, err := rc.BatchLoadRegionsFromKey(bo, []byte{}, preloadRegions)
+		if err != nil {
+			logutil.BgLogger().Warn("preload regions failed", zap.Error(err))
+		} else {
+			logutil.BgLogger().Info("preload regions finished")
+		}
+	}
+
 	return &Client{
 		apiVersion:  opt.apiVersion,
 		clusterID:   pdCli.GetClusterID(ctx),
-		regionCache: locate.NewRegionCache(pdCli),
+		regionCache: rc,
 		pdClient:    pdCli,
 		rpcClient:   rpcCli,
 	}, nil

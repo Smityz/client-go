@@ -80,6 +80,8 @@ type Config struct {
 	EnableAsyncCommit     bool
 	Enable1PC             bool
 	ResourceControl       resourceControlClient.RequestUnitConfig
+	// PreloadRegions is the number of regions to preload before client serving.
+	PreloadRegions int
 }
 
 // DefaultConfig returns the default configuration.
